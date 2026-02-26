@@ -23,10 +23,27 @@
 let participant = prompt("Participant:");
 let filename = participant + "_VAL.csv";
 
-let phase = "instruction";
+let social_instruction = `
+ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
 
-let social_instruction = `กด SPACE เพื่อเริ่มบล็อก social`;
-let quality_instruction = `กด SPACE เพื่อเริ่มบล็อก quality`;
+ถ้าคำมีความหมายว่า
+'ชอบเข้าสังคม' กด A
+
+ถ้า 'ไม่ชอบเข้าสังคม' กด L
+
+กด SPACE เพื่อเริ่ม
+`;
+
+let quality_instruction = `
+ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
+
+ถ้าคำมีความหมายว่า
+'คุณภาพดี' กด A
+
+ถ้า 'คุณภาพต่ำ' กด L
+
+กด SPACE เพื่อเริ่ม
+`;
 
 let socialTrials = [];
 let qualityTrials = [];
@@ -37,107 +54,130 @@ let blockIndex = 0;
 let trialIndex = 0;
 let currentTrials = [];
 let currentMapping = {};
-let currentBlockName = "";
+let currentBlock = "";
+let phase = "loading";
 let startTime = 0;
 
-// 🔴 โหลดไฟล์ + เริ่มจริงตรงนี้เท่านั้น
+// ===== LOAD WORD LISTS =====
 Promise.all([
   fetch("wordlist.json"),
   fetch("wordlist_quality.json")
 ]).then(async ([r1, r2]) => {
-  if(!r1.ok || !r2.ok) throw "หาไฟล์ json ไม่เจอ";
-
   socialTrials = await r1.json();
   qualityTrials = await r2.json();
-
   startBlock();
-}).catch(err => {
-  document.getElementById("instruction").innerText =
-    "ERROR โหลดไฟล์คำไม่สำเร็จ\n" + err;
+}).catch(err=>{
+  instruction.innerText = "โหลดไฟล์คำไม่สำเร็จ";
 });
 
-// key listener
-document.addEventListener("keydown", e => {
+// ===== KEY LISTENER =====
+document.addEventListener("keydown", e=>{
   let k = e.key.toLowerCase();
 
-  if (e.code === "Space" && phase === "instruction") {
-    phase = "trial";
+  if(e.code==="Space" && phase==="instruction"){
+    phase="trial";
     showTrial();
   }
 
-  if (phase === "trial" && (k === "a" || k === "l")) {
+  if(phase==="trial" && (k==="a" || k==="l")){
     respond(k);
   }
 });
 
+// ===== START BLOCK =====
 function startBlock(){
   trialIndex = 0;
   phase = "instruction";
 
-  let blockType = blockOrder[blockIndex];
+  let type = blockOrder[blockIndex];
 
-  if(blockType==="social"){
-    showInstruction(social_instruction);
+  if(type==="social"){
+    instruction.innerText = social_instruction;
     currentTrials = shuffle([...socialTrials]);
     currentMapping = {"ชอบเข้าสังคม":"a","ไม่ชอบเข้าสังคม":"l"};
-    currentBlockName = "social";
+    currentBlock = "social";
   } else {
-    showInstruction(quality_instruction);
+    instruction.innerText = quality_instruction;
     currentTrials = shuffle([...qualityTrials]);
     currentMapping = {"คุณภาพดี":"a","คุณภาพต่ำ":"l"};
-    currentBlockName = "quality";
+    currentBlock = "quality";
   }
+
+  stim.innerText="";
+  leftLabel.innerText="";
+  rightLabel.innerText="";
 }
 
-function showInstruction(text){
-  instruction.innerText = text;
-  stim.innerText = "";
-  leftLabel.innerText = "";
-  rightLabel.innerText = "";
-}
-
+// ===== SHOW TRIAL =====
 function showTrial(){
   if(trialIndex >= currentTrials.length){
     blockIndex++;
     if(blockIndex >= blockOrder.length){
-      instruction.innerText = "จบการทดลอง";
+      instruction.innerText="จบการทดลอง";
+      downloadCSV();
       return;
     } else {
       startBlock();
+      return;
     }
-    return;
   }
 
   let t = currentTrials[trialIndex];
-  instruction.innerText = "";
+  instruction.innerText="";
   stim.innerText = t.word;
+
+  if(currentBlock==="social"){
+    leftLabel.innerText="ชอบเข้าสังคม";
+    rightLabel.innerText="ไม่ชอบเข้าสังคม";
+  } else {
+    leftLabel.innerText="คุณภาพดี";
+    rightLabel.innerText="คุณภาพต่ำ";
+  }
 
   startTime = performance.now();
 }
 
+// ===== RESPONSE =====
 function respond(key){
+  let rt = performance.now() - startTime;
+  let t = currentTrials[trialIndex];
+
+  let corrKey = currentMapping[t.cat];
+  let corr = (key===corrKey)?1:0;
+
+  allData.push({
+    participant: participant,
+    block: currentBlock,
+    word: t.word,
+    cat: t.cat,
+    key: key,
+    rt: rt.toFixed(1),
+    corr: corr
+  });
+
   trialIndex++;
-  setTimeout(showTrial,500);
+  setTimeout(showTrial,500); // ITI 0.5 sec
 }
 
+// ===== SHUFFLE =====
 function shuffle(a){
   return a.sort(()=>Math.random()-0.5);
 }
 
-function downloadCSV() {
-  let csv = "word,cat,key,rt,corr\n";
-  data.forEach(r=>{
-    csv += `${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
+// ===== SAVE CSV =====
+function downloadCSV(){
+  let csv="participant,block,word,cat,key,rt,corr\n";
+  allData.forEach(r=>{
+    csv+=`${r.participant},${r.block},${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
   });
 
-  let blob = new Blob([csv], {type:"text/csv"});
-  let url = URL.createObjectURL(blob);
-  let a = document.createElement("a");
-  a.href = url;
-  a.download = "data.csv";
+  let blob=new Blob([csv],{type:"text/csv"});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement("a");
+  a.href=url;
+  a.download=filename;
   a.click();
 }
-
 </script>
 
 </body>
