@@ -23,6 +23,8 @@
 let participant = prompt("Participant:");
 let filename = participant + "_VAL.csv";
 
+let phase = "instruction";
+
 let social_instruction = `
 ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
 
@@ -71,26 +73,31 @@ let currentTrials = [];
 let currentMapping = {};
 let currentBlockName = "";
 let startTime = 0;
-let waitingForSpace = true;
 
+// โหลดไฟล์คำ
 fetch("wordlist.json").then(r=>r.json()).then(j=>socialTrials=j);
-fetch("wordlist.json").then(r=>r.json()).then(j=>qualityTrials=j);
+fetch("wordlist_quality.json").then(r=>r.json()).then(j=>qualityTrials=j);
 
-document.addEventListener("keydown", e=>{
-  if(e.code==="Space" && phase==="instruction"){
-    phase = "trial";
-    showTrial();
-  }
-
-  if(phase==="trial" && ["a","l"].includes(e.key)){
-    respond(e.key);
-  }
-});
-
+// ฟังค์ชันสุ่ม
 function shuffle(array){
   return array.sort(()=>Math.random()-0.5);
 }
 
+// key listener
+document.addEventListener("keydown", e => {
+  let k = e.key.toLowerCase();
+
+  if (e.code === "Space" && phase === "instruction") {
+    phase = "trial";
+    showTrial();
+  }
+
+  if (phase === "trial" && (k === "a" || k === "l")) {
+    respond(k);
+  }
+});
+
+// เริ่ม block
 function startBlock(){
   trialIndex = 0;
   phase = "instruction";
@@ -110,14 +117,16 @@ function startBlock(){
   }
 }
 
+// แสดง instruction
 function showInstruction(text){
   document.getElementById("instruction").innerText = text;
   document.getElementById("stim").innerText = "";
   document.getElementById("leftLabel").innerText = "";
   document.getElementById("rightLabel").innerText = "";
-  waitingForSpace = true;
+  phase = "instruction";
 }
 
+// แสดง trial
 function showTrial(){
   if(trialIndex >= currentTrials.length){
     blockIndex++;
@@ -144,9 +153,8 @@ function showTrial(){
   startTime = performance.now();
 }
 
+// ตอบสนอง
 function respond(key){
-  if(waitingForSpace) return;
-
   let rt = performance.now() - startTime;
   let t = currentTrials[trialIndex];
   let corrKey = currentMapping[t.cat];
@@ -163,14 +171,15 @@ function respond(key){
 
   trialIndex++;
 
-  // ITI 0.5 sec
   document.getElementById("stim").innerText = "";
   document.getElementById("leftLabel").innerText = "";
   document.getElementById("rightLabel").innerText = "";
 
+  // ITI 0.5 sec
   setTimeout(showTrial,500);
 }
 
+// save CSV
 function downloadCSV(){
   let csv = "participant,block,stim,cat,key,rt,corr\n";
   allData.forEach(r=>{
@@ -184,6 +193,10 @@ function downloadCSV(){
   a.download=filename;
   a.click();
 }
+
+// เริ่ม block แรก
+startBlock();
 </script>
+
 </body>
 </html>
