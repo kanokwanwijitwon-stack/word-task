@@ -39,7 +39,7 @@ const quality_instruction = `
 
 document.getElementById("instruction").innerText = social_instruction;
 
-fetch("wordlist_sociability.json")
+fetch("wordlist.json")
   .then(res => res.json())
   .then(json => trials = json);
 
