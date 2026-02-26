@@ -1,10 +1,102 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
   <meta charset="utf-8">
-  <title>Test</title>
+  <title>Word Validation Task</title>
+
+  <script src="https://unpkg.com/jspsych@7.3.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <link href="https://unpkg.com/jspsych@7.3.0/css/jspsych.css" rel="stylesheet" />
+
+  <style>
+    body { background-color: black; color: white; }
+    .labels {
+      position: absolute;
+      top: 50px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 28px;
+      padding: 0 100px;
+    }
+  </style>
 </head>
-<body style="background:black; color:white; font-size:40px;">
-  ถ้าเห็นข้อความนี้ แปลว่าเว็บคุณทำงานแล้ว 🎉
-</body>
+<body></body>
+
+<script>
+var social_words = [
+  {word: "เป็นมิตร", cat: "ชอบเข้าสังคม"},
+  {word: "เก็บตัว", cat: "ไม่ชอบเข้าสังคม"}
+];
+
+var quality_words = [
+  {word: "ดีเยี่ยม", cat: "คุณภาพดี"},
+  {word: "แย่", cat: "คุณภาพต่ำ"}
+];
+
+var social_instruction = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <p>ถ้าคำหมายถึง <b>ชอบเข้าสังคม</b> กด A</p>
+    <p>ถ้าคำหมายถึง <b>ไม่ชอบเข้าสังคม</b> กด L</p>
+    <p>กด SPACE เพื่อเริ่ม</p>
+  `,
+  choices: [" "]
+};
+
+var quality_instruction = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <p>ถ้าคำหมายถึง <b>คุณภาพดี</b> กด A</p>
+    <p>ถ้าคำหมายถึง <b>คุณภาพต่ำ</b> กด L</p>
+    <p>กด SPACE เพื่อเริ่ม</p>
+  `,
+  choices: [" "]
+};
+
+function make_trials(stimlist, leftLabel, rightLabel, blockName) {
+  return {
+    timeline: [{
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function(){
+        return `
+          <div class="labels">
+            <div>${leftLabel}</div>
+            <div>${rightLabel}</div>
+          </div>
+          <div style="font-size:60px; margin-top:200px;">${jsPsych.timelineVariable('word')}</div>
+        `;
+      },
+      choices: ['a','l'],
+      data: {
+        block: blockName,
+        cat: jsPsych.timelineVariable('cat'),
+        word: jsPsych.timelineVariable('word')
+      },
+      on_finish: function(data){
+        var corrKey = (data.cat == leftLabel) ? "a" : "l";
+        data.corr = (data.response == corrKey) ? 1 : 0;
+      },
+      post_trial_gap: 500
+    }],
+    timeline_variables: stimlist,
+    randomize_order: true
+  };
+}
+
+var timeline = [];
+for(let i=0;i<4;i++){
+  timeline.push(social_instruction);
+  timeline.push(make_trials(social_words,"ชอบเข้าสังคม","ไม่ชอบเข้าสังคม","social"));
+  timeline.push(quality_instruction);
+  timeline.push(make_trials(quality_words,"คุณภาพดี","คุณภาพต่ำ","quality"));
+}
+
+jsPsych.init({
+  timeline: timeline,
+  on_finish: function(){
+    jsPsych.data.get().localSave('csv','word_validation_data.csv');
+  }
+});
+</script>
 </html>
