@@ -75,8 +75,16 @@ let currentBlockName = "";
 let startTime = 0;
 
 // โหลดไฟล์คำ
-fetch("wordlist.json").then(r=>r.json()).then(j=>socialTrials=j);
-fetch("wordlist_quality.json").then(r=>r.json()).then(j=>qualityTrials=j);
+Promise.all([
+  fetch("wordlist.json").then(r => r.json()),
+  fetch("wordlist_quality.json").then(r => r.json())
+]).then(([social, quality]) => {
+  socialTrials = social;
+  qualityTrials = quality;
+
+}).catch(err => {
+  alert("โหลดไฟล์คำไม่สำเร็จ: " + err);
+});
 
 // ฟังค์ชันสุ่ม
 function shuffle(array){
