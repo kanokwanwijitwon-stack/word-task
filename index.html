@@ -12,7 +12,7 @@
 </head>
 <body>
 
-<div id="instruction"></div>
+<div id="instruction">กำลังโหลดคำ...</div>
 <div id="stim"></div>
 <div id="labels">
   <div id="leftLabel"></div>
@@ -25,48 +25,14 @@ let filename = participant + "_VAL.csv";
 
 let phase = "instruction";
 
-let social_instruction = `
-ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
-
-ถ้าคำมีความหมายว่า
-'ชอบเข้าสังคม'
-ให้กดปุ่ม A
-
-ถ้าคำมีความหมายว่า
-'ไม่ชอบเข้าสังคม'
-ให้กดปุ่ม L
-
-กรุณาตอบให้เร็วและแม่นยำที่สุด
-
-กดปุ่ม SPACE เพื่อเริ่ม
-`;
-
-let quality_instruction = `
-ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
-
-ถ้าคำมีความหมายว่า
-'คุณภาพดี'
-ให้กดปุ่ม A
-
-ถ้าคำมีความหมายว่า
-'คุณภาพต่ำ'
-ให้กดปุ่ม L
-
-กรุณาตอบให้เร็วและแม่นยำที่สุด
-
-กดปุ่ม SPACE เพื่อเริ่ม
-`;
+let social_instruction = `กด SPACE เพื่อเริ่มบล็อก social`;
+let quality_instruction = `กด SPACE เพื่อเริ่มบล็อก quality`;
 
 let socialTrials = [];
 let qualityTrials = [];
 let allData = [];
 
-let blockOrder = [];
-for(let i=0;i<4;i++){
-  blockOrder.push("social");
-  blockOrder.push("quality");
-}
-
+let blockOrder = ["social","quality"];
 let blockIndex = 0;
 let trialIndex = 0;
 let currentTrials = [];
@@ -74,22 +40,21 @@ let currentMapping = {};
 let currentBlockName = "";
 let startTime = 0;
 
-// โหลดไฟล์คำ
+// 🔴 โหลดไฟล์ + เริ่มจริงตรงนี้เท่านั้น
 Promise.all([
-  fetch("wordlist.json").then(r => r.json()),
-  fetch("wordlist_quality.json").then(r => r.json())
-]).then(([social, quality]) => {
-  socialTrials = social;
-  qualityTrials = quality;
+  fetch("wordlist.json"),
+  fetch("wordlist_quality.json")
+]).then(async ([r1, r2]) => {
+  if(!r1.ok || !r2.ok) throw "หาไฟล์ json ไม่เจอ";
 
+  socialTrials = await r1.json();
+  qualityTrials = await r2.json();
+
+  startBlock();
 }).catch(err => {
-  alert("โหลดไฟล์คำไม่สำเร็จ: " + err);
+  document.getElementById("instruction").innerText =
+    "ERROR โหลดไฟล์คำไม่สำเร็จ\n" + err;
 });
-
-// ฟังค์ชันสุ่ม
-function shuffle(array){
-  return array.sort(()=>Math.random()-0.5);
-}
 
 // key listener
 document.addEventListener("keydown", e => {
@@ -105,7 +70,6 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// เริ่ม block
 function startBlock(){
   trialIndex = 0;
   phase = "instruction";
@@ -116,30 +80,28 @@ function startBlock(){
     showInstruction(social_instruction);
     currentTrials = shuffle([...socialTrials]);
     currentMapping = {"ชอบเข้าสังคม":"a","ไม่ชอบเข้าสังคม":"l"};
-    currentBlockName = "Block2_sociability";
+    currentBlockName = "social";
   } else {
     showInstruction(quality_instruction);
     currentTrials = shuffle([...qualityTrials]);
     currentMapping = {"คุณภาพดี":"a","คุณภาพต่ำ":"l"};
-    currentBlockName = "Block2_quality";
+    currentBlockName = "quality";
   }
 }
 
-// แสดง instruction
 function showInstruction(text){
-  document.getElementById("instruction").innerText = text;
-  document.getElementById("stim").innerText = "";
-  document.getElementById("leftLabel").innerText = "";
-  document.getElementById("rightLabel").innerText = "";
-  phase = "instruction";
+  instruction.innerText = text;
+  stim.innerText = "";
+  leftLabel.innerText = "";
+  rightLabel.innerText = "";
 }
 
-// แสดง trial
 function showTrial(){
   if(trialIndex >= currentTrials.length){
     blockIndex++;
     if(blockIndex >= blockOrder.length){
-      downloadCSV();
+      instruction.innerText = "จบการทดลอง";
+      return;
     } else {
       startBlock();
     }
@@ -147,63 +109,20 @@ function showTrial(){
   }
 
   let t = currentTrials[trialIndex];
-  document.getElementById("instruction").innerText = "";
-  document.getElementById("stim").innerText = t.word;
-
-  if(currentBlockName==="Block2_sociability"){
-    document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
-    document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
-  } else {
-    document.getElementById("leftLabel").innerText = "คุณภาพดี";
-    document.getElementById("rightLabel").innerText = "คุณภาพต่ำ";
-  }
+  instruction.innerText = "";
+  stim.innerText = t.word;
 
   startTime = performance.now();
 }
 
-// ตอบสนอง
 function respond(key){
-  let rt = performance.now() - startTime;
-  let t = currentTrials[trialIndex];
-  let corrKey = currentMapping[t.cat];
-  let corr = key===corrKey ? 1 : 0;
-
-  allData.push({
-    block: currentBlockName,
-    stim: t.word,
-    cat: t.cat,
-    key: key,
-    rt: rt.toFixed(1),
-    corr: corr
-  });
-
   trialIndex++;
-
-  document.getElementById("stim").innerText = "";
-  document.getElementById("leftLabel").innerText = "";
-  document.getElementById("rightLabel").innerText = "";
-
-  // ITI 0.5 sec
   setTimeout(showTrial,500);
 }
 
-// save CSV
-function downloadCSV(){
-  let csv = "participant,block,stim,cat,key,rt,corr\n";
-  allData.forEach(r=>{
-    csv += `${participant},${r.block},${r.stim},${r.cat},${r.key},${r.rt},${r.corr}\n`;
-  });
-
-  let blob = new Blob([csv],{type:"text/csv"});
-  let url = URL.createObjectURL(blob);
-  let a = document.createElement("a");
-  a.href=url;
-  a.download=filename;
-  a.click();
+function shuffle(a){
+  return a.sort(()=>Math.random()-0.5);
 }
-
-// เริ่ม block แรก
-startBlock();
 </script>
 
 </body>
