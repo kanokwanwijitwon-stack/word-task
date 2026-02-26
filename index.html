@@ -6,7 +6,8 @@
 <style>
   body { background:black; color:white; font-family:Arial; text-align:center; }
   #stim { font-size:60px; margin-top:200px; }
-  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin-left:auto; margin-right:auto;}
+  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin:auto;}
+  #instruction { font-size:40px; white-space:pre-line; }
 </style>
 </head>
 <body>
@@ -19,58 +20,139 @@
 </div>
 
 <script>
-let block = "social";
-let trials = [];
-let trialIndex = 0;
-let startTime;
-let data = [];
+let participant = prompt("Participant:");
+let filename = participant + "_VAL.csv";
 
-const social_instruction = `
-ถ้าคำมีความหมายว่า 'ชอบเข้าสังคม' กด A  
-ถ้า 'ไม่ชอบเข้าสังคม' กด L  
-กด SPACE เพื่อเริ่ม
+let social_instruction = `
+ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
+
+ถ้าคำมีความหมายว่า
+'ชอบเข้าสังคม'
+ให้กดปุ่ม A
+
+ถ้าคำมีความหมายว่า
+'ไม่ชอบเข้าสังคม'
+ให้กดปุ่ม L
+
+กรุณาตอบให้เร็วและแม่นยำที่สุด
+
+กดปุ่ม SPACE เพื่อเริ่ม
 `;
 
-const quality_instruction = `
-ถ้าคำมีความหมายว่า 'คุณภาพดี' กด A  
-ถ้า 'คุณภาพต่ำ' กด L  
-กด SPACE เพื่อเริ่ม
+let quality_instruction = `
+ในบล็อกนี้ คุณจะเห็นคำปรากฏบนหน้าจอ
+
+ถ้าคำมีความหมายว่า
+'คุณภาพดี'
+ให้กดปุ่ม A
+
+ถ้าคำมีความหมายว่า
+'คุณภาพต่ำ'
+ให้กดปุ่ม L
+
+กรุณาตอบให้เร็วและแม่นยำที่สุด
+
+กดปุ่ม SPACE เพื่อเริ่ม
 `;
 
-document.getElementById("instruction").innerText = social_instruction;
+let socialTrials = [];
+let qualityTrials = [];
+let allData = [];
 
-fetch("wordlist.json")
-  .then(res => res.json())
-  .then(json => trials = json);
-
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" && trialIndex === 0) startBlock();
-  if (["a","l"].includes(e.key)) respond(e.key);
-});
-
-function startBlock() {
-  document.getElementById("instruction").innerText = "";
-  showTrial();
+let blockOrder = [];
+for(let i=0;i<4;i++){
+  blockOrder.push("social");
+  blockOrder.push("quality");
 }
 
-function showTrial() {
-  if (trialIndex >= trials.length) return downloadCSV();
+let blockIndex = 0;
+let trialIndex = 0;
+let currentTrials = [];
+let currentMapping = {};
+let currentBlockName = "";
+let startTime = 0;
+let waitingForSpace = true;
 
-  let t = trials[trialIndex];
+fetch("wordlist.json").then(r=>r.json()).then(j=>socialTrials=j);
+fetch("wordlist.json").then(r=>r.json()).then(j=>qualityTrials=j);
+
+document.addEventListener("keydown", e=>{
+  if(waitingForSpace && e.code==="Space"){
+    waitingForSpace=false;
+    startBlock();
+  }
+  if(["a","l"].includes(e.key)){
+    respond(e.key);
+  }
+});
+
+function shuffle(array){
+  return array.sort(()=>Math.random()-0.5);
+}
+
+function startBlock(){
+  trialIndex = 0;
+
+  let blockType = blockOrder[blockIndex];
+
+  if(blockType==="social"){
+    showInstruction(social_instruction);
+    currentTrials = shuffle([...socialTrials]);
+    currentMapping = {"ชอบเข้าสังคม":"a","ไม่ชอบเข้าสังคม":"l"};
+    currentBlockName = "Block2_sociability";
+  } else {
+    showInstruction(quality_instruction);
+    currentTrials = shuffle([...qualityTrials]);
+    currentMapping = {"คุณภาพดี":"a","คุณภาพต่ำ":"l"};
+    currentBlockName = "Block2_quality";
+  }
+}
+
+function showInstruction(text){
+  document.getElementById("instruction").innerText = text;
+  document.getElementById("stim").innerText = "";
+  document.getElementById("leftLabel").innerText = "";
+  document.getElementById("rightLabel").innerText = "";
+  waitingForSpace = true;
+}
+
+function showTrial(){
+  if(trialIndex >= currentTrials.length){
+    blockIndex++;
+    if(blockIndex >= blockOrder.length){
+      downloadCSV();
+    } else {
+      startBlock();
+    }
+    return;
+  }
+
+  let t = currentTrials[trialIndex];
+  document.getElementById("instruction").innerText = "";
   document.getElementById("stim").innerText = t.word;
-  document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
-  document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
+
+  if(currentBlockName==="Block2_sociability"){
+    document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
+    document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
+  } else {
+    document.getElementById("leftLabel").innerText = "คุณภาพดี";
+    document.getElementById("rightLabel").innerText = "คุณภาพต่ำ";
+  }
+
   startTime = performance.now();
 }
 
-function respond(key) {
-  let rt = performance.now() - startTime;
-  let t = trials[trialIndex];
-  let corrKey = (t.cat === "ชอบเข้าสังคม") ? "a" : "l";
-  let corr = key === corrKey ? 1 : 0;
+function respond(key){
+  if(waitingForSpace) return;
 
-  data.push({
-    word: t.word,
+  let rt = performance.now() - startTime;
+  let t = currentTrials[trialIndex];
+  let corrKey = currentMapping[t.cat];
+  let corr = key===corrKey ? 1 : 0;
+
+  allData.push({
+    block: currentBlockName,
+    stim: t.word,
     cat: t.cat,
     key: key,
     rt: rt.toFixed(1),
@@ -78,20 +160,26 @@ function respond(key) {
   });
 
   trialIndex++;
-  showTrial();
+
+  // ITI 0.5 sec
+  document.getElementById("stim").innerText = "";
+  document.getElementById("leftLabel").innerText = "";
+  document.getElementById("rightLabel").innerText = "";
+
+  setTimeout(showTrial,500);
 }
 
-function downloadCSV() {
-  let csv = "word,cat,key,rt,corr\n";
-  data.forEach(r=>{
-    csv += `${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
+function downloadCSV(){
+  let csv = "participant,block,stim,cat,key,rt,corr\n";
+  allData.forEach(r=>{
+    csv += `${participant},${r.block},${r.stim},${r.cat},${r.key},${r.rt},${r.corr}\n`;
   });
 
-  let blob = new Blob([csv], {type:"text/csv"});
+  let blob = new Blob([csv],{type:"text/csv"});
   let url = URL.createObjectURL(blob);
   let a = document.createElement("a");
-  a.href = url;
-  a.download = "data.csv";
+  a.href=url;
+  a.download=filename;
   a.click();
 }
 </script>
