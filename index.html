@@ -6,13 +6,12 @@
 <style>
   body { background:black; color:white; font-family:Arial; text-align:center; }
   #stim { font-size:60px; margin-top:200px; }
-  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin:auto;}
-  #instruction { font-size:40px; white-space:pre-line; }
+  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin-left:auto; margin-right:auto;}
 </style>
 </head>
 <body>
 
-<div id="instruction">กำลังโหลดคำ...</div>
+<div id="instruction"></div>
 <div id="stim"></div>
 <div id="labels">
   <div id="leftLabel"></div>
@@ -20,110 +19,81 @@
 </div>
 
 <script>
-let participant = prompt("Participant:");
-let filename = participant + "_VAL.csv";
-
-let phase = "instruction";
-
-let social_instruction = `กด SPACE เพื่อเริ่มบล็อก social`;
-let quality_instruction = `กด SPACE เพื่อเริ่มบล็อก quality`;
-
-let socialTrials = [];
-let qualityTrials = [];
-let allData = [];
-
-let blockOrder = ["social","quality"];
-let blockIndex = 0;
+let block = "social";
+let trials = [];
 let trialIndex = 0;
-let currentTrials = [];
-let currentMapping = {};
-let currentBlockName = "";
-let startTime = 0;
+let startTime;
+let data = [];
 
-// 🔴 โหลดไฟล์ + เริ่มจริงตรงนี้เท่านั้น
-Promise.all([
-  fetch("wordlist.json"),
-  fetch("wordlist_quality.json")
-]).then(async ([r1, r2]) => {
-  if(!r1.ok || !r2.ok) throw "หาไฟล์ json ไม่เจอ";
+const social_instruction = `
+ถ้าคำมีความหมายว่า 'ชอบเข้าสังคม' กด A  
+ถ้า 'ไม่ชอบเข้าสังคม' กด L  
+กด SPACE เพื่อเริ่ม
+`;
 
-  socialTrials = await r1.json();
-  qualityTrials = await r2.json();
+const quality_instruction = `
+ถ้าคำมีความหมายว่า 'คุณภาพดี' กด A  
+ถ้า 'คุณภาพต่ำ' กด L  
+กด SPACE เพื่อเริ่ม
+`;
 
-  startBlock();
-}).catch(err => {
-  document.getElementById("instruction").innerText =
-    "ERROR โหลดไฟล์คำไม่สำเร็จ\n" + err;
-});
+document.getElementById("instruction").innerText = social_instruction;
 
-// key listener
+fetch("wordlist.json")
+  .then(res => res.json())
+  .then(json => trials = json);
+
 document.addEventListener("keydown", e => {
-  let k = e.key.toLowerCase();
-
-  if (e.code === "Space" && phase === "instruction") {
-    phase = "trial";
-    showTrial();
-  }
-
-  if (phase === "trial" && (k === "a" || k === "l")) {
-    respond(k);
-  }
+  if (e.code === "Space" && trialIndex === 0) startBlock();
+  if (["a","l"].includes(e.key)) respond(e.key);
 });
 
-function startBlock(){
-  trialIndex = 0;
-  phase = "instruction";
-
-  let blockType = blockOrder[blockIndex];
-
-  if(blockType==="social"){
-    showInstruction(social_instruction);
-    currentTrials = shuffle([...socialTrials]);
-    currentMapping = {"ชอบเข้าสังคม":"a","ไม่ชอบเข้าสังคม":"l"};
-    currentBlockName = "social";
-  } else {
-    showInstruction(quality_instruction);
-    currentTrials = shuffle([...qualityTrials]);
-    currentMapping = {"คุณภาพดี":"a","คุณภาพต่ำ":"l"};
-    currentBlockName = "quality";
-  }
+function startBlock() {
+  document.getElementById("instruction").innerText = "";
+  showTrial();
 }
 
-function showInstruction(text){
-  instruction.innerText = text;
-  stim.innerText = "";
-  leftLabel.innerText = "";
-  rightLabel.innerText = "";
-}
+function showTrial() {
+  if (trialIndex >= trials.length) return downloadCSV();
 
-function showTrial(){
-  if(trialIndex >= currentTrials.length){
-    blockIndex++;
-    if(blockIndex >= blockOrder.length){
-      instruction.innerText = "จบการทดลอง";
-      return;
-    } else {
-      startBlock();
-    }
-    return;
-  }
-
-  let t = currentTrials[trialIndex];
-  instruction.innerText = "";
-  stim.innerText = t.word;
-
+  let t = trials[trialIndex];
+  document.getElementById("stim").innerText = t.word;
+  document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
+  document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
   startTime = performance.now();
 }
 
-function respond(key){
+function respond(key) {
+  let rt = performance.now() - startTime;
+  let t = trials[trialIndex];
+  let corrKey = (t.cat === "ชอบเข้าสังคม") ? "a" : "l";
+  let corr = key === corrKey ? 1 : 0;
+
+  data.push({
+    word: t.word,
+    cat: t.cat,
+    key: key,
+    rt: rt.toFixed(1),
+    corr: corr
+  });
+
   trialIndex++;
-  setTimeout(showTrial,500);
+  showTrial();
 }
 
-function shuffle(a){
-  return a.sort(()=>Math.random()-0.5);
+function downloadCSV() {
+  let csv = "word,cat,key,rt,corr\n";
+  data.forEach(r=>{
+    csv += `${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
+  });
+
+  let blob = new Blob([csv], {type:"text/csv"});
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "data.csv";
+  a.click();
 }
 </script>
-
 </body>
 </html>
