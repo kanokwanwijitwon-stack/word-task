@@ -4,9 +4,31 @@
 <meta charset="UTF-8">
 <title>Word Validation Task</title>
 <style>
-  body { background:black; color:white; font-family:Arial; text-align:center; }
-  #stim { font-size:60px; margin-top:200px; }
-  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin-left:auto; margin-right:auto;}
+body {
+  margin:0;
+  background:black;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+}
+#instruction {
+  white-space: pre-line;
+  font-size:32px;
+  margin-top:200px;
+}
+#stim {
+  font-size:60px;
+  margin-top:200px;
+}
+#labels {
+  position:fixed;
+  top:50px;
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  padding:0 120px;
+  font-size:28px;
+}
 </style>
 </head>
 <body>
@@ -19,57 +41,111 @@
 </div>
 
 <script>
-let block = "social";
+let participant = prompt("Participant ID:");
+let blockOrder = ["social","quality","social","quality","social","quality","social","quality"];
+let currentBlock = 0;
 let trials = [];
 let trialIndex = 0;
-let startTime;
+let startTime = 0;
 let data = [];
 
 const social_instruction = `
-ถ้าคำมีความหมายว่า 'ชอบเข้าสังคม' กด A  
-ถ้า 'ไม่ชอบเข้าสังคม' กด L  
+ถ้าคำมีความหมายว่า
+"ชอบเข้าสังคม" กด A
+
+ถ้า
+"ไม่ชอบเข้าสังคม" กด L
+
 กด SPACE เพื่อเริ่ม
 `;
 
 const quality_instruction = `
-ถ้าคำมีความหมายว่า 'คุณภาพดี' กด A  
-ถ้า 'คุณภาพต่ำ' กด L  
+ถ้าคำมีความหมายว่า
+"คุณภาพดี" กด A
+
+ถ้า
+"คุณภาพต่ำ" กด L
+
 กด SPACE เพื่อเริ่ม
 `;
 
-document.getElementById("instruction").innerText = social_instruction;
-
-fetch("wordlist.json")
-  .then(res => res.json())
-  .then(json => trials = json);
-
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" && trialIndex === 0) startBlock();
-  if (["a","l"].includes(e.key)) respond(e.key);
-});
-
-function startBlock() {
-  document.getElementById("instruction").innerText = "";
-  showTrial();
+function shuffle(array){
+  for(let i=array.length-1;i>0;i--){
+    let j=Math.floor(Math.random()*(i+1));
+    [array[i],array[j]]=[array[j],array[i]];
+  }
 }
 
-function showTrial() {
-  if (trialIndex >= trials.length) return downloadCSV();
+document.addEventListener("keydown", e=>{
+  if(e.code==="Space" && startTime===0){
+    startBlock();
+  }
+  if(e.key==="a" || e.key==="l"){
+    respond(e.key);
+  }
+});
+
+function startBlock(){
+  document.getElementById("instruction").innerText="";
+  let block = blockOrder[currentBlock];
+  let file = block==="social" ? "wordlist_social.json" : "wordlist_quality.json";
+
+  fetch(file)
+    .then(r=>r.json())
+    .then(json=>{
+      trials = json;
+      shuffle(trials);
+      trialIndex = 0;
+      showTrial();
+    });
+}
+
+function showInstruction(){
+  let block = blockOrder[currentBlock];
+  document.getElementById("stim").innerText="";
+  document.getElementById("leftLabel").innerText="";
+  document.getElementById("rightLabel").innerText="";
+  document.getElementById("instruction").innerText =
+    block==="social" ? social_instruction : quality_instruction;
+  startTime = 0;
+}
+
+function showTrial(){
+  if(trialIndex>=trials.length){
+    currentBlock++;
+    if(currentBlock>=blockOrder.length){
+      finish();
+      return;
+    }
+    showInstruction();
+    return;
+  }
 
   let t = trials[trialIndex];
   document.getElementById("stim").innerText = t.word;
-  document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
-  document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
+
+  if(blockOrder[currentBlock]==="social"){
+    document.getElementById("leftLabel").innerText="ชอบเข้าสังคม";
+    document.getElementById("rightLabel").innerText="ไม่ชอบเข้าสังคม";
+  } else {
+    document.getElementById("leftLabel").innerText="คุณภาพดี";
+    document.getElementById("rightLabel").innerText="คุณภาพต่ำ";
+  }
+
   startTime = performance.now();
 }
 
-function respond(key) {
+function respond(key){
+  if(!startTime) return;
+
   let rt = performance.now() - startTime;
   let t = trials[trialIndex];
-  let corrKey = (t.cat === "ชอบเข้าสังคม") ? "a" : "l";
-  let corr = key === corrKey ? 1 : 0;
+  let corrKey = t.cat==="A" ? "a" : "l";
+  let corr = key===corrKey ? 1 : 0;
 
   data.push({
+    participant: participant,
+    block: blockOrder[currentBlock],
     word: t.word,
     cat: t.cat,
     key: key,
@@ -78,22 +154,26 @@ function respond(key) {
   });
 
   trialIndex++;
-  showTrial();
+  startTime=0;
+  setTimeout(showTrial,500); // ITI 0.5s
 }
 
-function downloadCSV() {
-  let csv = "word,cat,key,rt,corr\n";
+function finish(){
+  document.getElementById("stim").innerText="จบการทดลอง";
+  let csv="participant,block,word,cat,key,rt,corr\n";
   data.forEach(r=>{
-    csv += `${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
+    csv+=`${r.participant},${r.block},${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
   });
 
-  let blob = new Blob([csv], {type:"text/csv"});
-  let url = URL.createObjectURL(blob);
-  let a = document.createElement("a");
-  a.href = url;
-  a.download = "data.csv";
+  let blob=new Blob([csv],{type:"text/csv"});
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement("a");
+  a.href=url;
+  a.download=participant+"_VAL.csv";
   a.click();
 }
+
+showInstruction();
 </script>
 </body>
 </html>
