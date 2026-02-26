@@ -1,60 +1,99 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="utf-8">
-  <title>Word Validation Task</title>
-
-  <script src="https://unpkg.com/jspsych@7.3.0"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
-  <link href="https://unpkg.com/jspsych@7.3.0/css/jspsych.css" rel="stylesheet" />
-
-  <style>
-    body {
-      background-color: black;
-      color: white;
-      font-size: 40px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Word Validation Task</title>
+<style>
+  body { background:black; color:white; font-family:Arial; text-align:center; }
+  #stim { font-size:60px; margin-top:200px; }
+  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin-left:auto; margin-right:auto;}
+</style>
 </head>
-<body></body>
+<body>
+
+<div id="instruction"></div>
+<div id="stim"></div>
+<div id="labels">
+  <div id="leftLabel"></div>
+  <div id="rightLabel"></div>
+</div>
 
 <script>
-var social_words = [
-  {word: "เป็นมิตร", cat: "ชอบเข้าสังคม"},
-  {word: "เก็บตัว", cat: "ไม่ชอบเข้าสังคม"}
-];
+let block = "social";
+let trials = [];
+let trialIndex = 0;
+let startTime;
+let data = [];
 
-var instruction = {
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: `
-    <p>ถ้าคำหมายถึง <b>ชอบเข้าสังคม</b> กด A</p>
-    <p>ถ้าคำหมายถึง <b>ไม่ชอบเข้าสังคม</b> กด L</p>
-    <p>กด SPACE เพื่อเริ่ม</p>
-  `,
-  choices: [" "]
-};
+const social_instruction = `
+ถ้าคำมีความหมายว่า 'ชอบเข้าสังคม' กด A  
+ถ้า 'ไม่ชอบเข้าสังคม' กด L  
+กด SPACE เพื่อเริ่ม
+`;
 
-var trials = {
-  timeline: [{
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: function(){
-      return `<div style="font-size:60px;">${jsPsych.timelineVariable('word')}</div>`;
-    },
-    choices: ['a','l'],
-    data: {
-      cat: jsPsych.timelineVariable('cat'),
-      word: jsPsych.timelineVariable('word')
-    }
-  }],
-  timeline_variables: social_words,
-  randomize_order: true
-};
+const quality_instruction = `
+ถ้าคำมีความหมายว่า 'คุณภาพดี' กด A  
+ถ้า 'คุณภาพต่ำ' กด L  
+กด SPACE เพื่อเริ่ม
+`;
 
-jsPsych.init({
-  timeline: [instruction, trials],
-  on_finish: function(){
-    jsPsych.data.get().localSave('csv','data.csv');
-  }
+document.getElementById("instruction").innerText = social_instruction;
+
+fetch("wordlist.json")
+  .then(res => res.json())
+  .then(json => trials = json);
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && trialIndex === 0) startBlock();
+  if (["a","l"].includes(e.key)) respond(e.key);
 });
+
+function startBlock() {
+  document.getElementById("instruction").innerText = "";
+  showTrial();
+}
+
+function showTrial() {
+  if (trialIndex >= trials.length) return downloadCSV();
+
+  let t = trials[trialIndex];
+  document.getElementById("stim").innerText = t.word;
+  document.getElementById("leftLabel").innerText = "ชอบเข้าสังคม";
+  document.getElementById("rightLabel").innerText = "ไม่ชอบเข้าสังคม";
+  startTime = performance.now();
+}
+
+function respond(key) {
+  let rt = performance.now() - startTime;
+  let t = trials[trialIndex];
+  let corrKey = (t.cat === "ชอบเข้าสังคม") ? "a" : "l";
+  let corr = key === corrKey ? 1 : 0;
+
+  data.push({
+    word: t.word,
+    cat: t.cat,
+    key: key,
+    rt: rt.toFixed(1),
+    corr: corr
+  });
+
+  trialIndex++;
+  showTrial();
+}
+
+function downloadCSV() {
+  let csv = "word,cat,key,rt,corr\n";
+  data.forEach(r=>{
+    csv += `${r.word},${r.cat},${r.key},${r.rt},${r.corr}\n`;
+  });
+
+  let blob = new Blob([csv], {type:"text/csv"});
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = "data.csv";
+  a.click();
+}
 </script>
+</body>
 </html>
