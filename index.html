@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Word Validation Task</title>
+<style>
+  body { background:black; color:white; font-family:Arial; text-align:center; }
+  #stim { font-size:60px; margin-top:200px; }
+  #labels { margin-top:100px; font-size:30px; display:flex; justify-content:space-between; width:80%; margin:auto;}
+  #instruction { font-size:40px; white-space:pre-line; }
+</style>
+</head>
+<body>
+
+<div id="instruction">กำลังโหลดคำ...</div>
+<div id="stim"></div>
+<div id="labels">
+  <div id="leftLabel"></div>
+  <div id="rightLabel"></div>
+</div>
+
+<script>
+let participant = prompt("Participant:");
+let filename = participant + "_VAL.csv";
+
+let phase = "instruction";
+
+let social_instruction = `กด SPACE เพื่อเริ่มบล็อก social`;
+let quality_instruction = `กด SPACE เพื่อเริ่มบล็อก quality`;
+
+let socialTrials = [];
+let qualityTrials = [];
+let allData = [];
+
+let blockOrder = ["social","quality"];
+let blockIndex = 0;
+let trialIndex = 0;
+let currentTrials = [];
+let currentMapping = {};
+let currentBlockName = "";
+let startTime = 0;
+
+// 🔴 โหลดไฟล์ + เริ่มจริงตรงนี้เท่านั้น
+Promise.all([
+  fetch("wordlist.json"),
+  fetch("wordlist_quality.json")
+]).then(async ([r1, r2]) => {
+  if(!r1.ok || !r2.ok) throw "หาไฟล์ json ไม่เจอ";
+
+  socialTrials = await r1.json();
+  qualityTrials = await r2.json();
+
+  startBlock();
+}).catch(err => {
+  document.getElementById("instruction").innerText =
+    "ERROR โหลดไฟล์คำไม่สำเร็จ\n" + err;
+});
+
+// key listener
+document.addEventListener("keydown", e => {
+  let k = e.key.toLowerCase();
+
+  if (e.code === "Space" && phase === "instruction") {
+    phase = "trial";
+    showTrial();
+  }
+
+  if (phase === "trial" && (k === "a" || k === "l")) {
+    respond(k);
+  }
+});
+
+function startBlock(){
+  trialIndex = 0;
+  phase = "instruction";
+
+  let blockType = blockOrder[blockIndex];
+
+  if(blockType==="social"){
+    showInstruction(social_instruction);
+    currentTrials = shuffle([...socialTrials]);
+    currentMapping = {"ชอบเข้าสังคม":"a","ไม่ชอบเข้าสังคม":"l"};
+    currentBlockName = "social";
+  } else {
+    showInstruction(quality_instruction);
+    currentTrials = shuffle([...qualityTrials]);
+    currentMapping = {"คุณภาพดี":"a","คุณภาพต่ำ":"l"};
+    currentBlockName = "quality";
+  }
+}
+
+function showInstruction(text){
+  instruction.innerText = text;
+  stim.innerText = "";
+  leftLabel.innerText = "";
+  rightLabel.innerText = "";
+}
+
+function showTrial(){
+  if(trialIndex >= currentTrials.length){
+    blockIndex++;
+    if(blockIndex >= blockOrder.length){
+      instruction.innerText = "จบการทดลอง";
+      return;
+    } else {
+      startBlock();
+    }
+    return;
+  }
+
+  let t = currentTrials[trialIndex];
+  instruction.innerText = "";
+  stim.innerText = t.word;
+
+  startTime = performance.now();
+}
+
+function respond(key){
+  trialIndex++;
+  setTimeout(showTrial,500);
+}
+
+function shuffle(a){
+  return a.sort(()=>Math.random()-0.5);
+}
+</script>
+
+</body>
+</html>
